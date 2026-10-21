@@ -1,0 +1,134 @@
+-- ==========================================
+-- SCRIPT NAME: ตัวตลก (Clown Hub)
+-- ==========================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+local Mouse = LocalPlayer:GetMouse()
+
+-- ตัวแปรการเปิด/ปิดฟังก์ชัน (Settings)
+local Settings = {
+    EnemyRedESP = true,     -- 1. เห็นศัตรูเป็นสีแดง (ESP Red)
+    AutoShoot = true,       -- 2. ยิงอัตโนมัติ (Auto Shoot)
+    ShowHealth = true,      -- 3. เลือดศัตรู (Health Display)
+    TeamGreenESP = true,    -- 4. ฝั่งเราตัวสีเขียว (Team ESP Green)
+    OVRInfo = true,         -- 5. OVR (Overall Rating / Stat Info)
+    ShowDistance = true,    -- 6. ระยะของศัตรู (Distance Display)
+    Aimbot = true           -- 7. เล็งเป้าศัตรู (Aimbot)
+}
+
+-- สร้าง GUI หน้าจอ Script "ตัวตลก"
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ClownHubGUI"
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 220, 0, 320)
+MainFrame.Position = UDim2.new(0, 20, 0.3, 0)
+MainFrame.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+MainFrame.BorderSizePixel = 2
+MainFrame.BorderColor3 = Color3.fromRGB(255, 0, 0)
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local Title = Instance.new("TextLabel")
+Title.Name = "Title"
+Title.Size = UDim2.new(1, 0, 0, 40)
+Title.BackgroundColor3 = Color3.fromRGB(40, 0, 0)
+Title.Text = "🤡 ตัวตลก SCRIPT 🤡"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.TextSize = 18
+Title.Font = Enum.Font.SourceSansBold
+Title.Parent = MainFrame
+
+-- ฟังก์ชันดึงศัตรูที่ใกล้ที่สุด
+local function GetClosestEnemy()
+    local target = nil
+    local shortestDistance = math.huge
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Team ~= LocalPlayer.Team then
+            if player.Character and player.Character:FindFirstChild("HumanoidRootPart") and player.Character:FindFirstChildOfClass("Humanoid").Health > 0 then
+                local pos, onScreen = Camera:WorldToViewportPoint(player.Character.HumanoidRootPart.Position)
+                if onScreen then
+                    local magnitude = (Vector2.new(pos.X, pos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
+                    if magnitude < shortestDistance then
+                        target = player
+                        shortestDistance = magnitude
+                    end
+                end
+            end
+        end
+    end
+    return target
+end
+
+-- ระบบอัปเดตการทำงานหลัก (RenderStepped Loop)
+RunService.RenderStepped:Connect(function()
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+            local character = player.Character
+            local humanoid = character:FindFirstChildOfClass("Humanoid")
+            local isEnemy = (player.Team ~= LocalPlayer.Team)
+
+            -- 1 & 4. ระบบเปลี่ยนสีตัว (ESP Color Highlight)
+            local highlight = character:FindFirstChild("ClownHighlight") or Instance.new("Highlight", character)
+            highlight.Name = "ClownHighlight"
+            
+            if isEnemy and Settings.EnemyRedESP then
+                highlight.FillColor = Color3.fromRGB(255, 0, 0) -- ศัตรูสีแดง
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                highlight.Enabled = true
+            elseif not isEnemy and Settings.TeamGreenESP then
+                highlight.FillColor = Color3.fromRGB(0, 255, 0) -- ฝั่งเราสีเขียว
+                highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+                highlight.Enabled = true
+            else
+                highlight.Enabled = false
+            end
+
+            -- 3, 5, 6. แสดงข้อมูล (เลือด, OVR, ระยะทาง) บนหัว
+            local billboard = character.HumanoidRootPart:FindFirstChild("ClownInfo") or Instance.new("BillboardGui", character.HumanoidRootPart)
+            billboard.Name = "ClownInfo"
+            billboard.Size = UDim2.new(0, 200, 0, 50)
+            billboard.StudsOffset = Vector3.new(0, 3, 0)
+            billboard.AlwaysOnTop = true
+
+            local infoText = billboard:FindFirstChild("TextLabel") or Instance.new("TextLabel", billboard)
+            infoText.Size = UDim2.new(1, 0, 1, 0)
+            infoText.BackgroundTransparency = 1
+            infoText.TextColor3 = isEnemy and Color3.fromRGB(255, 100, 100) or Color3.fromRGB(100, 255, 100)
+            infoText.Font = Enum.Font.SourceSansBold
+            infoText.TextSize = 14
+
+            local dist = math.floor((LocalPlayer.Character.HumanoidRootPart.Position - character.HumanoidRootPart.Position).Magnitude)
+            local hp = humanoid and math.floor(humanoid.Health) or 0
+            local ovr = math.floor((hp + dist) / 2) -- คำนวณค่า OVR สมมติ
+
+            local displayText = ""
+            if Settings.ShowHealth then displayText = displayText .. "HP: " .. hp .. " | " end
+            if Settings.OVRInfo then displayText = displayText .. "OVR: " .. ovr .. " | " end
+            if Settings.ShowDistance then displayText = displayText .. "Dist: " .. dist .. "m" end
+
+            infoText.Text = displayText
+        end
+    end
+
+    -- 7. ระบบเล็งเป้าศัตรู (Aimbot) & 2. ยิงอัตโนมัติ (Auto Shoot)
+    local targetEnemy = GetClosestEnemy()
+    if targetEnemy and targetEnemy.Character and targetEnemy.Character:FindFirstChild("Head") then
+        if Settings.Aimbot then
+            -- หันกล้องไปที่หัวของศัตรู
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetEnemy.Character.Head.Position)
+        end
+        
+        if Settings.AutoShoot then
+            -- จำลองการกดยิงอัตโนมัติเมื่อเล็งศัตรู
+            mouse1click()
+        end
+    end
+end)
